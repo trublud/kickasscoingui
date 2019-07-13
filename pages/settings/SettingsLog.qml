@@ -1,0 +1,233 @@
+// Copyright (c) 2014-2018, The KickAssCoin Project
+// 
+// All rights reserved.
+// 
+// Redistribution and use in source and binary forms, with or without modification, are
+// permitted provided that the following conditions are met:
+// 
+// 1. Redistributions of source code must retain the above copyright notice, this list of
+//    conditions and the following disclaimer.
+// 
+// 2. Redistributions in binary form must reproduce the above copyright notice, this list
+//    of conditions and the following disclaimer in the documentation and/or other
+//    materials provided with the distribution.
+// 
+// 3. Neither the name of the copyright holder nor the names of its contributors may be
+//    used to endorse or promote products derived from this software without specific
+//    prior written permission.
+// 
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+// THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+// STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
+// THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+import QtQuick 2.9
+import QtQuick.Layouts 1.1
+import QtQuick.Controls 2.0
+
+import "../../js/Utils.js" as Utils
+import "../../components" as KickAssCoinComponents
+
+
+Rectangle {
+    property alias consoleArea: consoleArea
+    color: "transparent"
+    height: 1400
+    Layout.fillWidth: true
+
+    ColumnLayout {
+        id: settingsLog
+        property int itemHeight: 60
+        Layout.fillWidth: true
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: (isMobile)? 17 : 20
+        anchors.topMargin: 0
+        spacing: 10
+
+//        Rectangle {
+//            // divider
+//            Layout.preferredHeight: 1
+//            Layout.fillWidth: true
+//            Layout.bottomMargin: 8
+//            color: KickAssCoinComponents.Style.dividerColor
+//            opacity: KickAssCoinComponents.Style.dividerOpacity
+//        }
+
+        KickAssCoinComponents.TextPlain {
+            Layout.bottomMargin: 2
+            color: KickAssCoinComponents.Style.defaultFontColor
+            font.pixelSize: 18
+            font.family: KickAssCoinComponents.Style.fontRegular.name
+            text: qsTr("Log level") + translationManager.emptyString
+        }
+
+        ColumnLayout {
+            spacing: 10
+            Layout.fillWidth: true
+            id: logColumn
+            z: parent.z + 1
+
+            ListModel {
+                 id: logLevel
+                 ListElement { column1: "0"; name: "none"; }
+                 ListElement { column1: "1"; }
+                 ListElement { column1: "2"; }
+                 ListElement { column1: "3"; }
+                 ListElement { column1: "4"; }
+                 ListElement { column1: "custom"; }
+            }
+
+            KickAssCoinComponents.StandardDropdown {
+                id: logLevelDropdown
+                dataModel: logLevel
+                itemTopMargin: 2
+                currentIndex: appWindow.persistentSettings.logLevel;
+                onChanged: {
+                    if (currentIndex == 5) {
+                        console.log("log categories changed: ", logCategories.text);
+                        walletManager.setLogCategories(logCategories.text);
+                    }
+                    else {
+                        console.log("log level changed: ",currentIndex);
+                        walletManager.setLogLevel(currentIndex);
+                    }
+                    appWindow.persistentSettings.logLevel = currentIndex;
+                }
+                Layout.fillWidth: true
+                Layout.preferredWidth: logColumn.width
+                z: parent.z + 1
+            }
+
+            KickAssCoinComponents.LineEdit {
+                id: logCategories
+                visible: logLevelDropdown.currentIndex === 5
+                Layout.fillWidth: true
+                Layout.preferredWidth: logColumn.width
+                text: appWindow.persistentSettings.logCategories
+                placeholderText: "(e.g. *:WARNING,net.p2p:DEBUG)"
+                placeholderFontSize: 14
+                fontSize: 14
+                enabled: logLevelDropdown.currentIndex === 5
+                onEditingFinished: {
+                    if(enabled) {
+                        console.log("log categories changed: ", text);
+                        walletManager.setLogCategories(text);
+                        appWindow.persistentSettings.logCategories = text;
+                    }
+                }
+            }
+        }
+
+        KickAssCoinComponents.TextPlain {
+            Layout.topMargin: 10
+            Layout.bottomMargin: 2
+            color: KickAssCoinComponents.Style.defaultFontColor
+            font.pixelSize: 18
+            font.family: KickAssCoinComponents.Style.fontRegular.name
+            text: qsTr("Daemon log") + translationManager.emptyString
+        }
+
+        Item {
+            Layout.fillHeight: true
+            Layout.fillWidth: true
+            Layout.preferredHeight: 240
+
+            Rectangle {
+                anchors.fill: parent
+                color: "transparent"
+                border.color: KickAssCoinComponents.Style.inputBorderColorInActive
+                border.width: 1
+                radius: 4
+            }
+
+            Flickable {
+                id: flickable
+                anchors.fill: parent
+
+                TextArea.flickable: TextArea {
+                    id : consoleArea
+                    color: KickAssCoinComponents.Style.defaultFontColor
+                    selectionColor: KickAssCoinComponents.Style.textSelectionColor
+                    textFormat: TextEdit.RichText
+                    selectByMouse: true
+                    selectByKeyboard: true
+                    font.family: KickAssCoinComponents.Style.defaultFontColor
+                    font.pixelSize: 14
+                    wrapMode: TextEdit.Wrap
+                    readOnly: true
+                    function logCommand(msg){
+                        msg = log_color(msg, "lime");
+                        consoleArea.append(msg);
+                    }
+                    function logMessage(msg){
+                        msg = msg.trim();
+                        var color = KickAssCoinComponents.Style.defaultFontColor;
+                        if(msg.toLowerCase().indexOf('error') >= 0){
+                            color = KickAssCoinComponents.Style.errorColor;
+                        } else if (msg.toLowerCase().indexOf('warning') >= 0){
+                            color = KickAssCoinComponents.Style.warningColor;
+                        }
+
+                        // format multi-lines
+                        if(msg.split("\n").length >= 2){
+                            msg = msg.split("\n").join('<br>');
+                        }
+
+                        log(msg, color);
+                    }
+                    function log_color(msg, color){
+                        return "<span style='color: " + color +  ";' >" + msg + "</span>";
+                    }
+                    function log(msg, color){
+                        var timestamp = Utils.formatDate(new Date(), {
+                            weekday: undefined,
+                            month: "numeric",
+                            timeZoneName: undefined
+                        });
+
+                        var _timestamp = log_color("[" + timestamp + "]", KickAssCoinComponents.Style.defaultFontColor);
+                        var _msg = log_color(msg, color);
+                        consoleArea.append(_timestamp + " " + _msg);
+
+                        // scroll to bottom
+                        //if(flickable.contentHeight > content.height){
+                        //    flickable.contentY = flickable.contentHeight;
+                        //}
+                    }
+                }
+
+                ScrollBar.vertical: ScrollBar {}
+            }
+        }
+
+        KickAssCoinComponents.LineEdit {
+            id: sendCommandText
+            Layout.fillWidth: true
+            fontBold: false
+            placeholderText: qsTr("command + enter (e.g 'help' or 'status')") + translationManager.emptyString
+            placeholderFontSize: 16
+            onAccepted: {
+                if(text.length > 0) {
+                    consoleArea.logCommand(">>> " + text)
+                    daemonManager.sendCommand(text, currentWallet.nettype);
+                }
+                text = ""
+            }
+        }
+    }
+
+    Component.onCompleted: {
+        logLevelDropdown.currentIndex = appWindow.persistentSettings.logLevel;
+        logLevelDropdown.update();
+
+        if(typeof daemonManager != "undefined")
+            daemonManager.daemonConsoleUpdated.connect(onDaemonConsoleUpdated)
+    }
+}
